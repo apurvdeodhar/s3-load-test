@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "s3-load-test.fullname" . }}
+  labels:
+    {{- include "s3-load-test.labels" . | nindent 4 }}
+data:
+  s3-load-test.yml: |
+    config:
+      target: {{ .Values.loadTest.target }}
+      phases:
+        - duration: 60
+          arrivalRate: 1
+          rampTo: 5
+          name: Warm up phase
+        - duration: 60
+          arrivalRate: 5
+          rampTo: 10
+          name: Ramp up load
+        - duration: 30
+          arrivalRate: 10
+          rampTo: 30
+          name: Spike phase
+      plugins:
+        publish-metrics:
+          - type: cloudwatch
+            region: {{ .Values.loadTest.awsRegion }}
+            namespace: s3-load-testing
+            dimensions:
+              - name: Service
+                value: s3-compatible-svc
+        ensure: {}
+        apdex: {}
+        metrics-by-endpoint: {}
+      plugins:
+      apdex:
+        threshold: 100
+      ensure:
+          thresholds:
+            - http.response_time.p99: 100
+            - http.response_time.p95: 75
+    {{- with .Values.loadTest.scenarios }}
+    scenarios: {{- toYaml . | nindent 6 }}
+    {{- end }}
